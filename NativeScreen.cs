@@ -48,6 +48,14 @@ internal static class NativeScreen
         SetWindowLong(hwnd, -20, style | 0x20 | 0x80 | 0x08000000);
     }
 
+    internal static bool TryGetWindowBounds(nint hwnd, out PixelBounds bounds)
+    {
+        bounds = default;
+        if (hwnd == 0 || !IsWindowVisible(hwnd) || IsIconic(hwnd) || !GetWindowRect(hwnd, out var rect)) return false;
+        bounds = new PixelBounds(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+        return bounds.Width > 0 && bounds.Height > 0;
+    }
+
     internal static void PositionOverlay(nint hwnd, PixelBounds bounds)
     {
         if (!SetWindowPos(hwnd, new nint(-1), bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x10))
@@ -77,7 +85,8 @@ internal static class NativeScreen
         return new PixelBounds(x, y, width, height);
     }
 
-    internal static List<PixelBounds> FindMatches(PixelBounds bounds, Color color, int tolerance)
+    internal static List<PixelBounds> FindMatches(PixelBounds bounds, Color color, int tolerance,
+        IReadOnlyList<PixelBounds>? excludedRegions)
     {
         var pixels = Capture(bounds);
         // Flood fill actual matching pixels (including diagonal neighbors).
@@ -94,6 +103,7 @@ internal static class NativeScreen
                 Math.Abs(pixels[p] - color.B) <= tolerance)
                 occupied[y * columns + x] = true;
         }
+        if (excludedRegions is not null) DetectionMask.ClearRegions(occupied, bounds, excludedRegions);
         var result = new List<PixelBounds>();
         var queue = new Queue<int>();
         for (var i = 0; i < occupied.Length && result.Count < 250; i++)
@@ -178,6 +188,7 @@ internal static class NativeScreen
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(nint hwnd, StringBuilder text, int count);
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(nint hwnd);
     [DllImport("user32.dll")] private static extern bool IsWindow(nint hwnd);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(nint hwnd, out Rect rect);
     [DllImport("user32.dll")] private static extern bool IsIconic(nint hwnd);
     [DllImport("user32.dll")] private static extern bool GetClientRect(nint hwnd, out Rect rect);
     [DllImport("user32.dll")] private static extern bool ClientToScreen(nint hwnd, ref Point point);

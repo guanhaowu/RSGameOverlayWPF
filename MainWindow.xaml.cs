@@ -19,6 +19,8 @@ public partial class MainWindow : Window
     private HwndSource? source;
     private bool pickRegistered, toggleRegistered;
     private bool escapeRegistered;
+    private bool freezeRegistered;
+    private bool frozen;
 
     public MainWindow()
     {
@@ -29,8 +31,10 @@ public partial class MainWindow : Window
             source.AddHook(WindowMessage);
             pickRegistered = NativeScreen.RegisterHotKey(source.Handle, 1, 0x4000, 0x77);
             toggleRegistered = NativeScreen.RegisterHotKey(source.Handle, 2, 0x4000, 0x78);
+            freezeRegistered = NativeScreen.RegisterHotKey(source.Handle, 4, 0x4000, 0x79);
             if (!pickRegistered || !toggleRegistered)
                 Status.Text = "F8 or F9 is already in use. Close the conflicting app and reopen this app.";
+            if (!freezeRegistered) Status.Text += " F10 is unavailable; use the Freeze highlights button.";
         };
         Loaded += (_, _) => RefreshClients();
         timer.Tick += Scan_Tick;
@@ -45,6 +49,7 @@ public partial class MainWindow : Window
                 if (pickRegistered) NativeScreen.UnregisterHotKey(source.Handle, 1);
                 if (toggleRegistered) NativeScreen.UnregisterHotKey(source.Handle, 2);
                 if (escapeRegistered) NativeScreen.UnregisterHotKey(source.Handle, 3);
+                if (freezeRegistered) NativeScreen.UnregisterHotKey(source.Handle, 4);
                 source.RemoveHook(WindowMessage);
             }
             overlay.Close();
@@ -79,6 +84,7 @@ public partial class MainWindow : Window
         }
         else if (wParam == 2) Toggle();
         else if (wParam == 3) StopPicker_Click(this, new RoutedEventArgs());
+        else if (wParam == 4) FreezeHighlights_Click(this, new RoutedEventArgs());
         handled = true;
         return 0;
     }
@@ -97,6 +103,8 @@ public partial class MainWindow : Window
     private void PickNewColor_Click(object sender, RoutedEventArgs e)
     {
         picking = true;
+        frozen = false;
+        FreezeButton.Content = "Freeze highlights for screenshot (F10)";
         generation++;
         overlay.Hide();
         overlay.Clear();
@@ -149,6 +157,18 @@ public partial class MainWindow : Window
         }
     }
     private void Toggle_Click(object sender, RoutedEventArgs e) => Toggle();
+    private void FreezeHighlights_Click(object sender, RoutedEventArgs e)
+    {
+        if (!running || picking)
+        {
+            Status.Text = "Select a color and start highlighting before freezing.";
+            return;
+        }
+        frozen = !frozen;
+        generation++;
+        FreezeButton.Content = frozen ? "Resume live highlights (F10)" : "Freeze highlights for screenshot (F10)";
+        Status.Text = frozen ? "Highlights frozen. Take your screenshot, then press F10 to resume." : "Live highlighting resumed.";
+    }
     private void ClientList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         generation++;
@@ -164,6 +184,9 @@ public partial class MainWindow : Window
             return;
         }
         running = !running;
+        frozen = false;
+        FreezeButton.IsEnabled = running;
+        FreezeButton.Content = "Freeze highlights for screenshot (F10)";
         generation++;
         ToggleButton.Content = running ? "Stop highlighting (F9)" : "Start highlighting (F9)";
         if (running) timer.Start();
@@ -174,17 +197,21 @@ public partial class MainWindow : Window
     private async void Scan_Tick(object? sender, EventArgs e)
     {
         if (scanning || picking || !running || ClientList.SelectedItem is not ClientWindow client) return;
-        var foreground = NativeScreen.GetForegroundWindow();
-        if (foreground != client.Handle && foreground != new WindowInteropHelper(this).Handle)
-        {
-            overlay.Hide();
-            Status.Text = "Paused while another application is active.";
-            return;
-        }
         if (!NativeScreen.TryGetClientBounds(client.Handle, out var bounds))
         {
             overlay.Hide();
             Status.Text = "Client is minimized or unavailable. Waiting…";
+            return;
+        }
+        // Pause detection without hiding the last result when ANY other app
+        // takes focus. Screenshot tools need no process-name special cases.
+        var foreground = NativeScreen.GetForegroundWindow();
+        if (frozen || (foreground != client.Handle && foreground != new WindowInteropHelper(this).Handle))
+        {
+            if (overlay.IsVisible) overlay.Place(bounds);
+            Status.Text = frozen
+                ? "Highlights frozen. Press F10 to resume."
+                : "Highlights retained while another application is active.";
             return;
         }
         scanning = true;
@@ -194,12 +221,18 @@ public partial class MainWindow : Window
         try
         {
             overlay.Place(bounds);
-            var matches = await Task.Run(() => NativeScreen.FindMatches(bounds, color, tolerance));
-            if (closing || !running || generation != version) return;
+            var excluded = overlay.GetDetectionExclusions(bounds);
+            if (NativeScreen.TryGetWindowBounds(new WindowInteropHelper(this).Handle, out var controlBounds))
+                excluded.Add(controlBounds);
+            // Mask the preview as well, even when a capture API does not honor
+            // its Windows display-affinity exclusion.
+            if (NativeScreen.TryGetWindowBounds(new WindowInteropHelper(cursorPreview).Handle, out var previewBounds))
+                excluded.Add(previewBounds);
+            var matches = await Task.Run(() => NativeScreen.FindMatches(bounds, color, tolerance, excluded));
+            if (closing || !running || frozen || generation != version) return;
             foreground = NativeScreen.GetForegroundWindow();
             if (foreground != client.Handle && foreground != new WindowInteropHelper(this).Handle)
             {
-                overlay.Hide();
                 return;
             }
             if (!NativeScreen.TryGetClientBounds(client.Handle, out var current) || current != bounds)

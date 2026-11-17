@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -8,6 +7,7 @@ namespace RSGameOverlayWPF;
 
 public partial class OverlayWindow : Window
 {
+    private IReadOnlyList<PixelBounds> displayedMatches = Array.Empty<PixelBounds>();
     public OverlayWindow()
     {
         InitializeComponent();
@@ -17,17 +17,29 @@ public partial class OverlayWindow : Window
     internal void Place(PixelBounds bounds)
     {
         var handle = new WindowInteropHelper(this).EnsureHandle();
-        if (!NativeScreen.SetWindowDisplayAffinity(handle, 0x11))
-            throw new Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(), "Cannot exclude overlay from capture.");
+        // Leave the highlights visible to screenshot tools. Detection masks only
+        // their painted border pixels instead of hiding the entire window.
         NativeScreen.PositionOverlay(handle, bounds);
         if (!IsVisible) Show();
     }
 
-    internal void Clear() => Highlights.Children.Clear();
+    internal void Clear()
+    {
+        displayedMatches = Array.Empty<PixelBounds>();
+        Highlights.Children.Clear();
+    }
+
+    internal List<PixelBounds> GetDetectionExclusions(PixelBounds capture)
+    {
+        return IsVisible
+            ? displayedMatches.SelectMany(match => DetectionMask.OutlineEdges(capture, match)).ToList()
+            : new List<PixelBounds>();
+    }
 
     internal void SetMatches(IReadOnlyList<PixelBounds> matches)
     {
         Clear();
+        displayedMatches = matches.ToArray();
         var dpi = VisualTreeHelper.GetDpi(this);
         foreach (var match in matches)
         {
@@ -46,7 +58,8 @@ public partial class OverlayWindow : Window
         var outline = new Rectangle
         {
             Width = width / dpi.DpiScaleX, Height = height / dpi.DpiScaleY,
-            Stroke = brush, StrokeThickness = thickness / dpi.DpiScaleX, IsHitTestVisible = false
+            Stroke = brush, StrokeThickness = thickness / dpi.DpiScaleX, IsHitTestVisible = false,
+            SnapsToDevicePixels = true
         };
         System.Windows.Controls.Canvas.SetLeft(outline, x / dpi.DpiScaleX);
         System.Windows.Controls.Canvas.SetTop(outline, y / dpi.DpiScaleY);

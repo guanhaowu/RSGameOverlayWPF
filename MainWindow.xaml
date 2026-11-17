@@ -1,4 +1,4 @@
-<Window x:Class="RSGameOverlayWPF.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="RuneScape color overlay" Width="460" Height="610" ResizeMode="CanMinimize">
+<Window x:Class="RSGameOverlayWPF.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="RuneScape color overlay" Width="460" Height="650" ResizeMode="CanMinimize">
  <StackPanel Margin="24">
   <TextBlock Text="Color overlay" FontSize="25" FontWeight="SemiBold"/>
   <TextBlock Margin="0,8,0,20" Text="Reads pixels only. Never moves or clicks the mouse." TextWrapping="Wrap"/>
@@ -23,6 +23,7 @@
    <Slider x:Name="Tolerance" Minimum="0" Maximum="80" Value="12" TickFrequency="1" IsSnapToTickEnabled="True"/>
   </DockPanel>
   <Button x:Name="ToggleButton" Content="Start highlighting (F9)" Click="Toggle_Click" Padding="12,10"/>
+  <Button x:Name="FreezeButton" Content="Freeze highlights for screenshot (F10)" Click="FreezeHighlights_Click" IsEnabled="False" Padding="10,7" Margin="0,8,0,0"/>
   <TextBlock x:Name="Status" Margin="0,14,0,0" Text="Select a client window and press F8 to start picking a color." TextWrapping="Wrap"/>
   <TextBlock Margin="0,12,0,0" Text="Keep the client visible in windowed or borderless mode. Covered pixels cannot be detected." TextWrapping="Wrap"/>
  </StackPanel>
