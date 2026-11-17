@@ -3,6 +3,13 @@
 A WPF control window and a transparent, click-through overlay. Reads visible
 pixels and draws outlines. No mouse movement, click injection, or game automation.
 
+## Example result
+
+Matching color areas in RuneScape are outlined in green. The control window
+shows the selected color, its HEX and RGB values, and the matching tolerance.
+
+![RuneScape color overlay showing green highlights around matching colors and the selected color in the control window](others/ColorPickerHighlight.png)
+
 ## Requirements
 
 To run a downloaded release:
