@@ -1,0 +1,8 @@
+<Window x:Class="RSGameOverlayWPF.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Color highlights" WindowStyle="None" ResizeMode="NoResize"
+        AllowsTransparency="True" Background="Transparent" Topmost="True"
+        ShowInTaskbar="False" ShowActivated="False" Focusable="False" IsHitTestVisible="False">
+    <Canvas x:Name="Highlights" IsHitTestVisible="False" ClipToBounds="True"/>
+</Window>

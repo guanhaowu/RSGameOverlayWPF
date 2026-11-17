@@ -1,24 +1,196 @@
-﻿using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using System.Windows.Threading;
 
-namespace RSGameOverlayWPF
+namespace RSGameOverlayWPF;
+
+public partial class MainWindow : Window
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
-    public partial class MainWindow : Window
+    private readonly OverlayWindow overlay = new();
+    private readonly CursorPreviewWindow cursorPreview = new();
+    private readonly DispatcherTimer previewTimer = new() { Interval = TimeSpan.FromMilliseconds(50) };
+    private bool picking;
+    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(180) };
+    private Color selectedColor = Colors.Magenta;
+    private bool running, scanning, closing;
+    private int generation;
+    private HwndSource? source;
+    private bool pickRegistered, toggleRegistered;
+
+    public MainWindow()
     {
-        public MainWindow()
+        InitializeComponent();
+        SourceInitialized += (_, _) =>
         {
-            InitializeComponent();
+            source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+            source.AddHook(WindowMessage);
+            pickRegistered = NativeScreen.RegisterHotKey(source.Handle, 1, 0x4000, 0x77);
+            toggleRegistered = NativeScreen.RegisterHotKey(source.Handle, 2, 0x4000, 0x78);
+            if (!pickRegistered || !toggleRegistered)
+                Status.Text = "F8 or F9 is already in use. Close the conflicting app and reopen this app.";
+        };
+        Loaded += (_, _) => RefreshClients();
+        timer.Tick += Scan_Tick;
+        previewTimer.Tick += Preview_Tick;
+        Closed += (_, _) =>
+        {
+            closing = true;
+            timer.Stop();
+            previewTimer.Stop();
+            if (source is not null)
+            {
+                if (pickRegistered) NativeScreen.UnregisterHotKey(source.Handle, 1);
+                if (toggleRegistered) NativeScreen.UnregisterHotKey(source.Handle, 2);
+                source.RemoveHook(WindowMessage);
+            }
+            overlay.Close();
+            cursorPreview.Close();
+        };
+    }
+
+    private nint WindowMessage(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
+    {
+        if (msg != 0x0312) return 0;
+        if (wParam == 1)
+        {
+            if (!picking)
+            {
+                PickNewColor_Click(this, new RoutedEventArgs());
+                handled = true;
+                return 0;
+            }
+            try
+            {
+                selectedColor = NativeScreen.PickColor();
+                picking = false;
+                ColorPreview.Background = new SolidColorBrush(selectedColor);
+                ColorLabel.Text = $"#{selectedColor.R:X2}{selectedColor.G:X2}{selectedColor.B:X2}\nRGB {selectedColor.R}, {selectedColor.G}, {selectedColor.B}";
+                cursorPreview.Display(selectedColor, false);
+                previewTimer.Start();
+                generation++;
+                overlay.Clear();
+                Status.Text = "Color selected. " + (running ? "Highlighting." : "Ready to start.");
+            }
+            catch (Exception ex) { Status.Text = ex.Message; }
         }
+        else if (wParam == 2) Toggle();
+        handled = true;
+        return 0;
+    }
+
+    private void RefreshClients()
+    {
+        var previous = (ClientList.SelectedItem as ClientWindow)?.Handle;
+        var clients = NativeScreen.ListWindows(new WindowInteropHelper(this).Handle);
+        ClientList.ItemsSource = clients;
+        ClientList.SelectedItem = clients.FirstOrDefault(c => c.Handle == previous)
+            ?? clients.FirstOrDefault(c => c.Title.Contains("RuneScape", StringComparison.OrdinalIgnoreCase)
+                || c.Title.Contains("RuneLite", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void Refresh_Click(object sender, RoutedEventArgs e) => RefreshClients();
+    private void PickNewColor_Click(object sender, RoutedEventArgs e)
+    {
+        picking = true;
+        generation++;
+        overlay.Hide();
+        overlay.Clear();
+        Status.Text = "Live color preview. Move your pointer, then press F8 to select.";
+        previewTimer.Start();
+        Preview_Tick(null, EventArgs.Empty);
+    }
+
+    private void Preview_Tick(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (picking)
+            {
+                var live = NativeScreen.PickColor();
+                cursorPreview.Display(live, true);
+                ColorPreview.Background = new SolidColorBrush(live);
+                ColorLabel.Text = $"#{live.R:X2}{live.G:X2}{live.B:X2}\nRGB {live.R}, {live.G}, {live.B}";
+            }
+            else cursorPreview.FollowCursor();
+        }
+        catch (Exception ex)
+        {
+            previewTimer.Stop();
+            picking = false;
+            cursorPreview.Hide();
+            ColorPreview.Background = new SolidColorBrush(selectedColor);
+            ColorLabel.Text = $"#{selectedColor.R:X2}{selectedColor.G:X2}{selectedColor.B:X2}\nRGB {selectedColor.R}, {selectedColor.G}, {selectedColor.B}";
+            Status.Text = $"Color preview failed: {ex.Message}";
+        }
+    }
+    private void Toggle_Click(object sender, RoutedEventArgs e) => Toggle();
+    private void ClientList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        generation++;
+        overlay.Hide();
+        overlay.Clear();
+    }
+
+    private void Toggle()
+    {
+        if (!running && ClientList.SelectedItem is not ClientWindow)
+        {
+            Status.Text = "Select the RuneScape client window first.";
+            return;
+        }
+        running = !running;
+        generation++;
+        ToggleButton.Content = running ? "Stop highlighting (F9)" : "Start highlighting (F9)";
+        if (running) timer.Start();
+        else { timer.Stop(); overlay.Hide(); }
+        Status.Text = running ? "Highlighting matching color areas…" : "Highlighting stopped.";
+    }
+
+    private async void Scan_Tick(object? sender, EventArgs e)
+    {
+        if (scanning || picking || !running || ClientList.SelectedItem is not ClientWindow client) return;
+        var foreground = NativeScreen.GetForegroundWindow();
+        if (foreground != client.Handle && foreground != new WindowInteropHelper(this).Handle)
+        {
+            overlay.Hide();
+            Status.Text = "Paused while another application is active.";
+            return;
+        }
+        if (!NativeScreen.TryGetClientBounds(client.Handle, out var bounds))
+        {
+            overlay.Hide();
+            Status.Text = "Client is minimized or unavailable. Waiting…";
+            return;
+        }
+        scanning = true;
+        var version = generation;
+        var color = selectedColor;
+        var tolerance = (int)Tolerance.Value;
+        try
+        {
+            overlay.Place(bounds);
+            var matches = await Task.Run(() => NativeScreen.FindMatches(bounds, color, tolerance));
+            if (closing || !running || generation != version) return;
+            foreground = NativeScreen.GetForegroundWindow();
+            if (foreground != client.Handle && foreground != new WindowInteropHelper(this).Handle)
+            {
+                overlay.Hide();
+                return;
+            }
+            if (!NativeScreen.TryGetClientBounds(client.Handle, out var current) || current != bounds)
+            {
+                overlay.Hide();
+                return;
+            }
+            overlay.SetMatches(matches);
+            Status.Text = $"{matches.Count} matching areas" + (matches.Count >= 250 ? " (display limit reached)." : ".");
+        }
+        catch (Exception ex)
+        {
+            if (!closing) { overlay.Hide(); Status.Text = $"Capture failed: {ex.Message}"; }
+        }
+        finally { scanning = false; }
     }
 }

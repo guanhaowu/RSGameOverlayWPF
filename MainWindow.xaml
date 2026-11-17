@@ -1,13 +1,25 @@
-﻿<Window x:Class="RSGameOverlayWPF.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:RSGameOverlayWPF"
-        mc:Ignorable="d"
-        Title="GameOverlay" Height="450" Width="800"
-        WindowStyle="None" AllowsTransparency="True" Background="Transparent">
-    <Grid>
-        <TextBlock Name="OverlayText" Foreground="White"/>
-    </Grid>
+<Window x:Class="RSGameOverlayWPF.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="RuneScape color overlay" Width="460" Height="610" ResizeMode="CanMinimize">
+ <StackPanel Margin="24">
+  <TextBlock Text="Color overlay" FontSize="25" FontWeight="SemiBold"/>
+  <TextBlock Margin="0,8,0,20" Text="Reads pixels only. Never moves or clicks the mouse." TextWrapping="Wrap"/>
+  <TextBlock Text="Client window"/>
+  <DockPanel Margin="0,6,0,16">
+   <Button DockPanel.Dock="Right" Content="Refresh" Click="Refresh_Click" Padding="10,5" Margin="8,0,0,0"/>
+   <ComboBox x:Name="ClientList" DisplayMemberPath="Title" SelectionChanged="ClientList_SelectionChanged"/>
+  </DockPanel>
+  <Button Content="Pick new color" Click="PickNewColor_Click" Padding="10,7" Margin="0,0,0,8"/>
+  <TextBlock Text="Press F8 to start the live color picker. Press F8 again to select and retain the color. No click needed." TextWrapping="Wrap" Margin="0,0,0,12"/>
+  <DockPanel Margin="0,0,0,16">
+   <Border x:Name="ColorPreview" Width="72" Height="60" Background="Magenta" BorderBrush="Black" BorderThickness="1" DockPanel.Dock="Left"/>
+   <TextBlock x:Name="ColorLabel" Text="#FF00FF&#10;RGB 255, 0, 255" VerticalAlignment="Center" Margin="12,0,0,0" FontFamily="Consolas" FontSize="16"/>
+  </DockPanel>
+  <TextBlock Text="Color tolerance (per RGB channel)"/>
+  <DockPanel Margin="0,6,0,16">
+   <TextBlock DockPanel.Dock="Right" Width="35" Text="{Binding ElementName=Tolerance, Path=Value, StringFormat={}{0:0}}"/>
+   <Slider x:Name="Tolerance" Minimum="0" Maximum="80" Value="12" TickFrequency="1" IsSnapToTickEnabled="True"/>
+  </DockPanel>
+  <Button x:Name="ToggleButton" Content="Start highlighting (F9)" Click="Toggle_Click" Padding="12,10"/>
+  <TextBlock x:Name="Status" Margin="0,14,0,0" Text="Select a client window and press F8 to start picking a color." TextWrapping="Wrap"/>
+  <TextBlock Margin="0,12,0,0" Text="Keep the client visible in windowed or borderless mode. Covered pixels cannot be detected." TextWrapping="Wrap"/>
+ </StackPanel>
 </Window>
