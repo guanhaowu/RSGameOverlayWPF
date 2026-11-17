@@ -17,10 +17,16 @@ Run the project in Rider, or run `dotnet run --project RSGameOverlayWPF.csproj`.
    to differ by up to 12. The cursor preview and control-window preview retain
    the selected color while you move the pointer. Click **Pick new color** to
    resume live sampling; highlighting pauses until you select with F8.
-6. Press F9 to stop. Closing the control window closes the overlay too.
+6. Press **Esc** or click **Stop picker** to hide the cursor preview and stop live
+   sampling. The main window retains the last color selected with F8, including
+   HEX and RGB. Canceling a new live pick restores that previous selection.
+   Highlighting continues if enabled. F8 opens the picker again.
+7. Press F9 to stop highlighting. Closing the control window closes the overlay too.
 
 F8/F9 are global shortcuts while the app runs. If another app has registered
 either key, close that app and reopen this one. The shortcuts consume those keys.
+Esc is registered only while the cursor preview is active and is released when
+the picker stops. If Esc is unavailable, use the Stop picker button.
 F8 starts live picking when idle and confirms the selected color while picking.
 Selections last for the current application session and reset on restart.
 The cursor preview is click-through, stays within the current monitor's work

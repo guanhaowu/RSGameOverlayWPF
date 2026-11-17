@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     private int generation;
     private HwndSource? source;
     private bool pickRegistered, toggleRegistered;
+    private bool escapeRegistered;
 
     public MainWindow()
     {
@@ -43,6 +44,7 @@ public partial class MainWindow : Window
             {
                 if (pickRegistered) NativeScreen.UnregisterHotKey(source.Handle, 1);
                 if (toggleRegistered) NativeScreen.UnregisterHotKey(source.Handle, 2);
+                if (escapeRegistered) NativeScreen.UnregisterHotKey(source.Handle, 3);
                 source.RemoveHook(WindowMessage);
             }
             overlay.Close();
@@ -76,6 +78,7 @@ public partial class MainWindow : Window
             catch (Exception ex) { Status.Text = ex.Message; }
         }
         else if (wParam == 2) Toggle();
+        else if (wParam == 3) StopPicker_Click(this, new RoutedEventArgs());
         handled = true;
         return 0;
     }
@@ -98,8 +101,32 @@ public partial class MainWindow : Window
         overlay.Hide();
         overlay.Clear();
         Status.Text = "Live color preview. Move your pointer, then press F8 to select.";
+        StopPickerButton.IsEnabled = true;
+        if (source is not null && !escapeRegistered)
+        {
+            escapeRegistered = NativeScreen.RegisterHotKey(source.Handle, 3, 0x4000, 0x1B);
+            if (!escapeRegistered)
+                Status.Text += " Esc is unavailable; use Stop picker to cancel.";
+        }
         previewTimer.Start();
         Preview_Tick(null, EventArgs.Empty);
+    }
+
+    private void StopPicker_Click(object sender, RoutedEventArgs e)
+    {
+        picking = false;
+        generation++;
+        previewTimer.Stop();
+        cursorPreview.Hide();
+        StopPickerButton.IsEnabled = false;
+        if (source is not null && escapeRegistered)
+        {
+            NativeScreen.UnregisterHotKey(source.Handle, 3);
+            escapeRegistered = false;
+        }
+        ColorPreview.Background = new SolidColorBrush(selectedColor);
+        ColorLabel.Text = $"#{selectedColor.R:X2}{selectedColor.G:X2}{selectedColor.B:X2}\nRGB {selectedColor.R}, {selectedColor.G}, {selectedColor.B}";
+        Status.Text = "Picker stopped. Last selected color retained.";
     }
 
     private void Preview_Tick(object? sender, EventArgs e)
@@ -117,11 +144,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            previewTimer.Stop();
-            picking = false;
-            cursorPreview.Hide();
-            ColorPreview.Background = new SolidColorBrush(selectedColor);
-            ColorLabel.Text = $"#{selectedColor.R:X2}{selectedColor.G:X2}{selectedColor.B:X2}\nRGB {selectedColor.R}, {selectedColor.G}, {selectedColor.B}";
+            StopPicker_Click(this, new RoutedEventArgs());
             Status.Text = $"Color preview failed: {ex.Message}";
         }
     }

@@ -7,8 +7,12 @@
    <Button DockPanel.Dock="Right" Content="Refresh" Click="Refresh_Click" Padding="10,5" Margin="8,0,0,0"/>
    <ComboBox x:Name="ClientList" DisplayMemberPath="Title" SelectionChanged="ClientList_SelectionChanged"/>
   </DockPanel>
-  <Button Content="Pick new color" Click="PickNewColor_Click" Padding="10,7" Margin="0,0,0,8"/>
-  <TextBlock Text="Press F8 to start the live color picker. Press F8 again to select and retain the color. No click needed." TextWrapping="Wrap" Margin="0,0,0,12"/>
+  <Grid Margin="0,0,0,8">
+   <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+   <Button Content="Pick new color (F8)" Click="PickNewColor_Click" Padding="10,7" Margin="0,0,4,0"/>
+   <Button x:Name="StopPickerButton" Grid.Column="1" Content="Stop picker (Esc)" Click="StopPicker_Click" Padding="10,7" Margin="4,0,0,0" IsEnabled="False"/>
+  </Grid>
+  <TextBlock Text="F8 starts picking; F8 again selects a color. Esc stops the picker and keeps your last selected color." TextWrapping="Wrap" Margin="0,0,0,12"/>
   <DockPanel Margin="0,0,0,16">
    <Border x:Name="ColorPreview" Width="72" Height="60" Background="Magenta" BorderBrush="Black" BorderThickness="1" DockPanel.Dock="Left"/>
    <TextBlock x:Name="ColorLabel" Text="#FF00FF&#10;RGB 255, 0, 255" VerticalAlignment="Center" Margin="12,0,0,0" FontFamily="Consolas" FontSize="16"/>
